@@ -5,10 +5,10 @@ import (
 	"log"
 	"path/filepath"
 
-	extract "github.com/Arindam-langer/OllamaChat/Extract"
+	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 )
 
-const DATASET string = "dataset"
+const DATASET string = "Test_dataset"
 
 func main() {
 	fmt.Println("Running the program")
@@ -22,6 +22,10 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(content)
+		chunks, err := extract.ChunkText(content, 800, 120)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Total chunks:", len(chunks))
 	}
 }

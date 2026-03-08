@@ -14,4 +14,7 @@ frontend : dont know
 
 
 ## Architecture:
+### Training from PDFs
 PDF → extract text → split → embed → store vectors → similarity search → send context to LLM
+- successfully extracted the contents of a pdf from a file.
+- now splitting it.
