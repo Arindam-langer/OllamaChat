@@ -63,9 +63,6 @@ func runIngest() {
 	}
 
 	dataset := os.Getenv("DATASET")
-	if dataset == "" {
-		dataset = "Test_dataset" // Default fallback
-	}
 
 	ctx := context.Background()
 
@@ -82,7 +79,7 @@ func runIngest() {
 	}
 
 	//Setup Embedder
-	embedder, err := extract.NewOllamaEmbedder(embedModel, "")
+	embedder, err := extract.NewOllamaEmbedder(embedModel, "") // todo: add embedding server url when using remote server
 	if err != nil {
 		log.Fatalln("Failed to create embedder:", err)
 	}
@@ -124,7 +121,11 @@ func runIngest() {
 			continue
 		}
 
-		fmt.Printf("  Successfully ingested %s -> %d embeddings (dim: %d)\n", file, len(embeddings), len(embeddings[0].Vector))
+		if len(embeddings) > 0 {
+			fmt.Printf("  Successfully ingested %s -> %d embeddings (dim: %d)\n", file, len(embeddings), len(embeddings[0].Vector))
+		} else {
+			fmt.Printf("  Successfully ingested %s -> 0 embeddings\n", file)
+		}
 	}
 
 	fmt.Println("Ingestion complete.")

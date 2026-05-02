@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
+	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 	pgxvec "github.com/pgvector/pgvector-go/pgx"
-	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 )
 
 type VectorStore struct {
@@ -24,6 +24,7 @@ func Connect(ctx context.Context, databaseURL string) (*VectorStore, error) {
 	}
 
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		// This requires the 'vector' extension to ALREADY exist in the database!
 		return pgxvec.RegisterTypes(ctx, conn)
 	}
 
@@ -34,18 +35,15 @@ func Connect(ctx context.Context, databaseURL string) (*VectorStore, error) {
 		if err == nil {
 			err = pool.Ping(ctx)
 			if err == nil {
-				break
+				return &VectorStore{pool: pool}, nil
 			}
+			pool.Close()
 		}
 		log.Printf("Waiting for database connection... (%d/5)\n", i+1)
 		time.Sleep(2 * time.Second)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	return &VectorStore{pool: pool}, nil
+	return nil, fmt.Errorf("failed to connect to database: %w", err)
 }
 
 func (s *VectorStore) Close() {
@@ -55,13 +53,6 @@ func (s *VectorStore) Close() {
 }
 
 func (s *VectorStore) InitDB(ctx context.Context) error {
-	// Create the pgvector extension
-	_, err := s.pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector")
-	if err != nil {
-		return fmt.Errorf("failed to create vector extension: %w", err)
-	}
-
-	// Create documents table
 	// Using 768 dimensions because nomic-embed-text generates 768-dimensional embeddings
 	schema := `
 	CREATE TABLE IF NOT EXISTS documents (
@@ -70,7 +61,7 @@ func (s *VectorStore) InitDB(ctx context.Context) error {
 		embedding vector(768)
 	);`
 
-	_, err = s.pool.Exec(ctx, schema)
+	_, err := s.pool.Exec(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("failed to create documents table: %w", err)
 	}
@@ -91,7 +82,7 @@ func (s *VectorStore) InsertEmbeddings(ctx context.Context, embeddings []extract
 	defer tx.Rollback(ctx)
 
 	for _, emb := range embeddings {
-		_, err := tx.Exec(ctx, 
+		_, err := tx.Exec(ctx,
 			"INSERT INTO documents (content, embedding) VALUES ($1, $2)",
 			emb.Text, pgvector.NewVector(emb.Vector),
 		)
@@ -108,11 +99,9 @@ func (s *VectorStore) InsertEmbeddings(ctx context.Context, embeddings []extract
 	return nil
 }
 
-// SearchSimilar finds the top K most similar documents to the query vector
-// using cosine distance (<=>).
 func (s *VectorStore) SearchSimilar(ctx context.Context, queryVector []float32, limit int) ([]string, error) {
-	rows, err := s.pool.Query(ctx, 
-		"SELECT content FROM documents ORDER BY embedding <=> $1 LIMIT $2", 
+	rows, err := s.pool.Query(ctx,
+		"SELECT content FROM documents ORDER BY embedding <=> $1 LIMIT $2",
 		pgvector.NewVector(queryVector), limit,
 	)
 	if err != nil {

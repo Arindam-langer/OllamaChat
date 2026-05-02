@@ -19,6 +19,7 @@ func NewOllamaEmbedder(model string, serverURL string) (*embeddings.EmbedderImpl
 	opts := []ollama.Option{
 		ollama.WithModel(model),
 	}
+	// no need for url since we are using localhost
 	if serverURL != "" {
 		opts = append(opts, ollama.WithServerURL(serverURL))
 	}
