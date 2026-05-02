@@ -18,3 +18,6 @@ frontend : dont know
 PDF → extract text → split → embed → store vectors → similarity search → send context to LLM
 - successfully extracted the contents of a pdf from a file.
 - now splitting it.
+- chunking completed.
+- successfully embedded chunks using Ollama's embedding API (`nomic-embed-text`) via `langchaingo`.
+current to do: store those embeddings in a vector database and add vector similarity search, keep the pipeline basic.

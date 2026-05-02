@@ -1,3 +1,3 @@
 dataset
-go.mod
 go.sum
+.env

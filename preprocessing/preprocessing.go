@@ -37,9 +37,7 @@ func ReadPdf(filePath string) (string, error) {
 	}
 	content := ""
 	defer f.Close()
-	if err != nil {
-		return "", fmt.Errorf("Failed to Open Pdf: %w", err)
-	}
+
 	totalPages := r.NumPage()
 
 	for i := range totalPages {
@@ -53,7 +51,6 @@ func ReadPdf(filePath string) (string, error) {
 		}
 		content += text //keep it inefficient for now but we need a refactor later here.
 
-		// fmt.Printf("content: %s \n", sentence.S)
 	}
 	log.Printf("Getting contents of file: %s", filePath)
 	return content, nil
