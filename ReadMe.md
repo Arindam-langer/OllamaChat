@@ -13,6 +13,32 @@ golang
 frontend : dont know
 
 
+## Prerequisites & Setup
+
+1. **Ollama**: Install and run Ollama with an embedding model.
+   ```bash
+   ollama pull nomic-embed-text
+   ollama serve
+   ```
+2. **Postgres Vector Database**: Start the local vector store using Docker.
+   ```bash
+   docker-compose up -d
+   ```
+3. **Initialize pgvector**: You must create the `vector` extension in the database before running ingestion.
+   ```bash
+   docker exec -it chattui-pgvector psql -U postgres -d vectordb -c "CREATE EXTENSION IF NOT EXISTS vector;"
+   ```
+
+## Running the App
+
+```bash
+# To ingest the PDFs into the vector database
+go run ./main ingest
+
+# To start the chat (coming soon)
+go run ./main chat
+```
+
 ## Architecture:
 ### Training from PDFs
 PDF → extract text → split → embed → store vectors → similarity search → send context to LLM
@@ -20,4 +46,5 @@ PDF → extract text → split → embed → store vectors → similarity search
 - now splitting it.
 - chunking completed.
 - successfully embedded chunks using Ollama's embedding API (`nomic-embed-text`) via `langchaingo`.
-current to do: store those embeddings in a vector database and add vector similarity search, keep the pipeline basic.
+-  ingestion completed using pgvector with docker i know and it has the vector similarity search thingy installed.
+current to do: Work on chat function of the cli. need to make cool UI for it.
