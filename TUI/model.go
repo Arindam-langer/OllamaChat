@@ -14,6 +14,7 @@ const (
 	screenMenu screenState = iota
 	screenChat
 	screenIngest
+	screenShow
 	screenFlush
 )
 
@@ -35,6 +36,11 @@ type model struct {
 	ingestDone   bool
 	ingestErr    error
 	ingestResult string
+
+	// Show state fields
+	showFiles  []string
+	showCursor int
+	showErr    error
 }
 
 func initialModel() model {
@@ -49,7 +55,7 @@ func initialModel() model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#89B4FA"))
 
 	return model{
-		options:      []string{"run chat", "ingest", "Flush DB", "exit"},
+		options:      []string{"run chat", "ingest", "show files", "Flush DB", "exit"},
 		cursor:       0,
 		state:        screenMenu,
 		help:         h,

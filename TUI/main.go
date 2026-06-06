@@ -50,6 +50,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd = updateChat(msg, m)
 	case screenIngest:
 		m, cmd = updateIngest(msg, m)
+	case screenShow:
+		m, cmd = updateShow(msg, m)
 	case screenFlush:
 		m, cmd = updateFlush(msg, m)
 	}
@@ -67,6 +69,8 @@ func (m model) View() string {
 		s.WriteString(viewChat(m))
 	case screenIngest:
 		s.WriteString(viewIngest(m))
+	case screenShow:
+		s.WriteString(viewShow(m))
 	case screenFlush:
 		s.WriteString(viewFlush(m))
 	}
@@ -112,6 +116,14 @@ func (m model) View() string {
 			activeKeys.No.SetEnabled(false)
 			activeKeys.Back.SetEnabled(true)
 		}
+	case screenShow:
+		activeKeys.Up.SetEnabled(true)
+		activeKeys.Down.SetEnabled(true)
+		activeKeys.Enter.SetEnabled(true)
+		activeKeys.Back.SetEnabled(true)
+		activeKeys.Quit.SetEnabled(false)
+		activeKeys.Yes.SetEnabled(false)
+		activeKeys.No.SetEnabled(false)
 	default:
 		activeKeys.Up.SetEnabled(false)
 		activeKeys.Down.SetEnabled(false)

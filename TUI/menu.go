@@ -35,12 +35,17 @@ func updateMenu(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.ingestErr = nil
 				m.ingestResult = ""
 			case 2:
+				m.state = screenShow
+				m.showFiles = nil
+				m.showErr = nil
+				return m, doShowCmd()
+			case 3:
 				m.state = screenFlush
 				m.flushing = false
 				m.flushSuccess = false
 				m.flushError = nil
 				m.progressVal = 0.0
-			case 3: // exit
+			case 4: // exit
 				return m, tea.Quit
 			}
 		}
