@@ -53,4 +53,19 @@ PDF → extract text → split → embed → store vectors → similarity search
 
 chatting is working now!! you can do `go run ./main chat` and it actually talks back using the context from ingested PDFs. feels good man.
 
+
 current to do: need to make cool UI for it using bubble tea TUI.
+
+
+##TUI:
+
+I need the funcking design first bubbeltea has good examples so will be stealing those.
+
+now since it is elm in bubbletea i will be making this in those three or four states i think i have three run chat, ingest and flush and exit and show.
+So i will be needing six states I think.
+
+State 1: when the program started and i have given options on what my application does so a list of options.
+State 2: The exit state when the user wants to leave.
+state 3 to 6 will be of functions so i will work on them later right now they should be done first
+completed state 1 and some of the state 3 to state 6. 
+TUI done

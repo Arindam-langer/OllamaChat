@@ -1,104 +1,82 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
 	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 	"github.com/Arindam-langer/OllamaChat/store"
+	"github.com/Arindam-langer/OllamaChat/main/ui"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
 
-func runChat() {
+type chatResponseMsg struct {
+	userQuery    string
+	aiResponse   string
+	historyEntry []llms.MessageContent
+	err          error
+}
 
-	//remove fallbacks once the chat loops are deterministic
-	chatModel := os.Getenv("CHAT_MODEL")
-	if chatModel == "" {
-		chatModel = "qwen2.5:3b"
-	}
+func doChatCmd(query string, history []llms.MessageContent) tea.Cmd {
+	return func() tea.Msg {
+		chatModel := os.Getenv("CHAT_MODEL")
+		if chatModel == "" {
+			chatModel = "qwen2.5:3b"
+		}
 
-	embedModel := os.Getenv("EMBED_MODEL")
-	if embedModel == "" {
-		embedModel = "nomic-embed-text"
-	}
-	systemPrompt := os.Getenv("SYSTEM_PROMPT")
-	if systemPrompt == "" {
-		systemPrompt = `You are a helpful assistant that answers questions based on the provided context documents.
+		embedModel := os.Getenv("EMBED_MODEL")
+		if embedModel == "" {
+			embedModel = "nomic-embed-text"
+		}
+
+		systemPrompt := os.Getenv("SYSTEM_PROMPT")
+		if systemPrompt == "" {
+			systemPrompt = `You are a helpful assistant that answers questions based on the provided context documents.
 Use the context below to answer the user's question accurately and concisely.
 If the context doesn't contain relevant information, say so honestly and try your best to help.`
-	}
-
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatalln("DATABASE_URL is not set in .ENV")
-	}
-
-	topK := 5
-
-	ctx := context.Background()
-
-	fmt.Println("Connecting to vector store...")
-	vectorStore, err := store.Connect(ctx, dbURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to vector store: %v", err)
-	}
-	defer vectorStore.Close()
-
-	if err := vectorStore.InitDB(ctx); err != nil {
-		log.Fatalf("Failed to initialize database schema: %v", err)
-	}
-
-	// Setup embedder for query embedding (same model used during ingestion)
-	embedder, err := extract.NewOllamaEmbedder(embedModel, "")
-	if err != nil {
-		log.Fatalf("Failed to create embedder: %v", err)
-	}
-
-	// Setup chat LLM
-	llm, err := ollama.New(ollama.WithModel(chatModel))
-	if err != nil {
-		log.Fatalf("Failed to create chat LLM: %v", err)
-	}
-
-	fmt.Printf("\n OllamaChat (model: %s) — type your question, or 'quit' to exit\n\n", chatModel)
-
-	scanner := bufio.NewScanner(os.Stdin)
-	var history []llms.MessageContent
-
-	for {
-		fmt.Print("You > ")
-		if !scanner.Scan() {
-			break
 		}
-		query := strings.TrimSpace(scanner.Text())
-		if query == "" {
-			continue
+
+		dbURL := os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			return chatResponseMsg{err: fmt.Errorf("DATABASE_URL is not set in .env")}
 		}
-		if query == "quit" || query == "exit" {
-			fmt.Println("Goodbye!")
-			break
+
+		topK := 5
+		ctx := context.Background()
+
+		vectorStore, err := store.Connect(ctx, dbURL)
+		if err != nil {
+			return chatResponseMsg{err: fmt.Errorf("failed to connect to vector store: %w", err)}
+		}
+		defer vectorStore.Close()
+
+		embedder, err := extract.NewOllamaEmbedder(embedModel, "")
+		if err != nil {
+			return chatResponseMsg{err: fmt.Errorf("failed to create embedder: %w", err)}
+		}
+
+		llm, err := ollama.New(ollama.WithModel(chatModel))
+		if err != nil {
+			return chatResponseMsg{err: fmt.Errorf("failed to create chat LLM: %w", err)}
 		}
 
 		queryVectors, err := embedder.EmbedDocuments(ctx, []string{query})
 		if err != nil {
-			log.Printf("Failed to embed query: %v\n", err)
-			continue
+			return chatResponseMsg{err: fmt.Errorf("failed to embed query: %w", err)}
 		}
 		if len(queryVectors) == 0 {
-			log.Println("No query vector returned")
-			continue
+			return chatResponseMsg{err: fmt.Errorf("no query vector returned")}
 		}
 
-		// Retrieve similar chunks from pgvector
 		results, err := vectorStore.SearchSimilar(ctx, queryVectors[0], topK)
 		if err != nil {
-			log.Printf("Failed to search similar documents: %v\n", err)
-			continue
+			return chatResponseMsg{err: fmt.Errorf("failed to search similar documents: %w", err)}
 		}
 
 		contextStr := ""
@@ -111,7 +89,6 @@ If the context doesn't contain relevant information, say so honestly and try you
 			userPrompt = fmt.Sprintf("Context:\n%s\n\nQuestion: %s", contextStr, query)
 		}
 
-		// 5. Assemble messages: system + conversation history + current query
 		messages := []llms.MessageContent{
 			{
 				Role:  llms.ChatMessageTypeSystem,
@@ -124,31 +101,113 @@ If the context doesn't contain relevant information, say so honestly and try you
 			Parts: []llms.ContentPart{llms.TextContent{Text: userPrompt}},
 		})
 
-		fmt.Print("\nAI > ")
 		var fullResponse strings.Builder
-
 		_, err = llm.GenerateContent(ctx, messages,
 			llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
-				fmt.Print(string(chunk))
 				fullResponse.Write(chunk)
 				return nil
 			}),
 		)
 		if err != nil {
-			log.Printf("\nFailed to generate response: %v\n", err)
-			continue
+			return chatResponseMsg{err: fmt.Errorf("failed to generate response: %w", err)}
 		}
-		fmt.Print("\n\n")
 
-		history = append(history,
-			llms.MessageContent{
+		historyEntries := []llms.MessageContent{
+			{
 				Role:  llms.ChatMessageTypeHuman,
 				Parts: []llms.ContentPart{llms.TextContent{Text: query}},
 			},
-			llms.MessageContent{
+			{
 				Role:  llms.ChatMessageTypeAI,
 				Parts: []llms.ContentPart{llms.TextContent{Text: fullResponse.String()}},
 			},
-		)
+		}
+
+		return chatResponseMsg{
+			userQuery:    query,
+			aiResponse:   fullResponse.String(),
+			historyEntry: historyEntries,
+		}
 	}
+}
+
+func updateChat(msg tea.Msg, m model) (model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		// Intercept Enter key message for submission so we don't insert a newline into the textarea
+		if key.Matches(msg, ui.Keys.Enter) {
+			query := strings.TrimSpace(m.chatInput.Value())
+			if query != "" {
+				m.chatContent += fmt.Sprintf("\nYou > %s\n", query)
+				m.chatViewport.SetContent(m.chatContent)
+				m.chatViewport.GotoBottom()
+
+				m.chatInput.Reset()
+				m.chatLoading = true
+				m.chatErr = nil
+
+				return m, tea.Batch(
+					doChatCmd(query, m.chatHistory),
+					m.spinner.Tick,
+				)
+			}
+			return m, nil
+		}
+
+		// Handle text input typing
+		var tiCmd tea.Cmd
+		m.chatInput, tiCmd = m.chatInput.Update(msg)
+		cmds = append(cmds, tiCmd)
+
+		// Handle viewport navigation keys (pageup/pagedown, etc.)
+		var vpCmd tea.Cmd
+		m.chatViewport, vpCmd = m.chatViewport.Update(msg)
+		cmds = append(cmds, vpCmd)
+
+	case chatResponseMsg:
+		m.chatLoading = false
+		if msg.err != nil {
+			m.chatErr = msg.err
+			m.chatContent += fmt.Sprintf("\nError: %v\n", msg.err)
+		} else {
+			m.chatContent += fmt.Sprintf("\nAI > %s\n\n", msg.aiResponse)
+			m.chatHistory = append(m.chatHistory, msg.historyEntry...)
+		}
+		m.chatViewport.SetContent(m.chatContent)
+		m.chatViewport.GotoBottom()
+
+	case spinner.TickMsg:
+		if m.chatLoading {
+			var spinCmd tea.Cmd
+			m.spinner, spinCmd = m.spinner.Update(msg)
+			return m, spinCmd
+		}
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+func viewChat(m model) string {
+	var s strings.Builder
+	s.WriteString(ui.TitleStyle.Render("  Interactive Chat  "))
+	s.WriteString("\n\n")
+
+	// Viewport content
+	s.WriteString(m.chatViewport.View())
+	s.WriteString("\n\n")
+
+	// Input / loading status line
+	if m.chatLoading {
+		s.WriteString(m.spinner.View())
+		s.WriteString(" Thinking...")
+	} else if m.chatErr != nil {
+		s.WriteString(ui.CuteHighlight.Render("Error: " + m.chatErr.Error()))
+	} else {
+		s.WriteString(m.chatInput.View())
+	}
+	s.WriteString("\n\n")
+
+	return s.String()
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Arindam-langer/OllamaChat/TUI/ui"
+	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"

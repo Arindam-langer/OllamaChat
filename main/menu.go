@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Arindam-langer/OllamaChat/TUI/ui"
+	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
