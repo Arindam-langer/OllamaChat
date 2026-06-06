@@ -55,7 +55,7 @@ func initialModel() model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#89B4FA"))
 
 	return model{
-		options:      []string{"run chat", "ingest", "show files", "Flush DB", "exit"},
+		options:      []string{"Run Chat", "Ingest", "Show Files", "Flush DB", "Exit"},
 		cursor:       0,
 		state:        screenMenu,
 		help:         h,
