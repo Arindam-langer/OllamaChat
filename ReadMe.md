@@ -17,7 +17,22 @@ frontend : going with bubble tea cli
 - qwen2.5:3b (or whatever Ollama model you want for chat)
 - nomic-embed-text:latest (for embedding text chunks)
 
-## Prerequisites & Setup
+## Quick Start (Automated)
+
+The easiest way to run the project is using the helper script `run.sh`. It automatically:
+1. Creates a default `.env` if missing.
+2. Spins up the Postgres Vector DB using Docker Compose.
+3. Waits for the DB to be ready and installs the pgvector extension.
+4. Launches the TUI.
+
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+## Manual Setup
+
+If you prefer doing it manually:
 
 1. **Ollama**: Install and run Ollama with the embedding and chat models.
    ```bash
@@ -29,26 +44,22 @@ frontend : going with bubble tea cli
    ```bash
    docker-compose up -d
    ```
-3. **Initialize pgvector**: You must create the `vector` extension in the database before running ingestion.
+3. **Initialize pgvector**: Create the `vector` extension:
    ```bash
    docker exec -it chattui-pgvector psql -U postgres -d vectordb -c "CREATE EXTENSION IF NOT EXISTS vector;"
    ```
-
-4. **Environment Configuration**: Create a `.env` file at the root. Here is what you need:
+4. **Environment Configuration**: Create a `.env` file at the root:
    ```env
    EMBED_MODEL=nomic-embed-text
    CHAT_MODEL=qwen2.5:3b
    DATABASE_URL=postgres://postgres:password@localhost:5432/vectordb?sslmode=disable
    DATASET=Test_dataset
-   SYSTEM_PROMPT="You are a helpful assistant that answers questions based on the provided context documents..."
+   SYSTEM_PROMPT="You are a helpful assistant..."
    ```
-
-## Running the App
-
-```bash
-# To start the interactive TUI application (replaces the old CLI)
-go run ./main
-```
+5. **Run the TUI**:
+   ```bash
+   go run ./main
+   ```
 
 ## Architecture:
 ### Training from PDFs
