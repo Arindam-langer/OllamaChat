@@ -35,11 +35,8 @@ frontend : going with bubble tea cli
 ## Running the App
 
 ```bash
-# To ingest the PDFs into the vector database
-go run ./main ingest
-
-# To start the chat
-go run ./main chat
+# To start the interactive TUI application (replaces the old CLI)
+go run ./main
 ```
 
 ## Architecture:
@@ -51,13 +48,10 @@ PDF → extract text → split → embed → store vectors → similarity search
 - successfully embedded chunks using Ollama's embedding API (`nomic-embed-text`) via `langchaingo`.
 -  ingestion completed using pgvector with docker i know and it has the vector similarity search thingy installed.
 
-chatting is working now!! you can do `go run ./main chat` and it actually talks back using the context from ingested PDFs. feels good man.
+chatting is working now!! you can do `go run ./main` and it actually talks back using the context from ingested PDFs. feels good man.
 
 
-current to do: need to make cool UI for it using bubble tea TUI.
-
-
-##TUI:
+## TUI:
 
 I need the funcking design first bubbeltea has good examples so will be stealing those.
 
@@ -68,4 +62,10 @@ State 1: when the program started and i have given options on what my applicatio
 State 2: The exit state when the user wants to leave.
 state 3 to 6 will be of functions so i will work on them later right now they should be done first
 completed state 1 and some of the state 3 to state 6. 
-TUI done
+TUI done.
+
+replaces the old cli stuff completely. simple `go run ./main` starts the whole thing.
+- run chat: multi-line using textarea. esc goes back. enter submits. thinking spinner works and retrieves context.
+- ingest: reads pdf dataset with a cool dotted blue loading spinner.
+- show files: lists files in dataset, can scroll with j/k and press enter to open selected pdf.
+- flush db: clean confirmation screen with progress bar.
