@@ -15,7 +15,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// 1. Handle Global Controls (Force quit, global back to menu, layout resizing)
+	// 1. Global controls
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -27,6 +27,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flushing = false
 			m.flushSuccess = false
 			m.flushError = nil
+			m.ingesting = false
+			m.ingestDone = false
+			m.ingestErr = nil
 			return m, nil
 		}
 
@@ -38,7 +41,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// 2. Delegate state update to active screen helper
+	// 2. Delegate to active screen
 	var cmd tea.Cmd
 	switch m.state {
 	case screenMenu:
@@ -57,7 +60,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var s strings.Builder
 
-	// 1. Render active screen content
 	switch m.state {
 	case screenMenu:
 		s.WriteString(viewMenu(m))
@@ -69,9 +71,10 @@ func (m model) View() string {
 		s.WriteString(viewFlush(m))
 	}
 
-	// 2. Configure active keys based on current page
+	// Dynamic help key configuration
 	activeKeys := ui.Keys
-	if m.state == screenMenu {
+	switch m.state {
+	case screenMenu:
 		activeKeys.Up.SetEnabled(true)
 		activeKeys.Down.SetEnabled(true)
 		activeKeys.Enter.SetEnabled(true)
@@ -79,7 +82,7 @@ func (m model) View() string {
 		activeKeys.Quit.SetEnabled(true)
 		activeKeys.Yes.SetEnabled(false)
 		activeKeys.No.SetEnabled(false)
-	} else if m.state == screenFlush {
+	case screenFlush:
 		activeKeys.Up.SetEnabled(false)
 		activeKeys.Down.SetEnabled(false)
 		activeKeys.Enter.SetEnabled(false)
@@ -94,7 +97,22 @@ func (m model) View() string {
 			activeKeys.No.SetEnabled(false)
 			activeKeys.Back.SetEnabled(true)
 		}
-	} else {
+	case screenIngest:
+		activeKeys.Up.SetEnabled(false)
+		activeKeys.Down.SetEnabled(false)
+		activeKeys.Enter.SetEnabled(false)
+		activeKeys.Quit.SetEnabled(false)
+
+		if !m.ingesting && !m.ingestDone && m.ingestErr == nil {
+			activeKeys.Yes.SetEnabled(true)
+			activeKeys.No.SetEnabled(true)
+			activeKeys.Back.SetEnabled(true)
+		} else {
+			activeKeys.Yes.SetEnabled(false)
+			activeKeys.No.SetEnabled(false)
+			activeKeys.Back.SetEnabled(true)
+		}
+	default:
 		activeKeys.Up.SetEnabled(false)
 		activeKeys.Down.SetEnabled(false)
 		activeKeys.Enter.SetEnabled(false)

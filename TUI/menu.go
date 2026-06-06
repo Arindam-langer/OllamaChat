@@ -30,11 +30,16 @@ func updateMenu(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.state = screenChat
 			case 1:
 				m.state = screenIngest
+				m.ingesting = false
+				m.ingestDone = false
+				m.ingestErr = nil
+				m.ingestResult = ""
 			case 2:
 				m.state = screenFlush
 				m.flushing = false
 				m.flushSuccess = false
 				m.flushError = nil
+				m.progressVal = 0.0
 			case 3: // exit
 				return m, tea.Quit
 			}

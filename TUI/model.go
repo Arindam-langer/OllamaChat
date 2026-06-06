@@ -4,6 +4,8 @@ import (
 	"github.com/Arindam-langer/OllamaChat/TUI/ui"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type screenState int
@@ -26,15 +28,25 @@ type model struct {
 	dbDone       bool
 	flushSuccess bool
 	flushError   error
+
+	// Ingest state fields
+	spinner      spinner.Model
+	ingesting    bool
+	ingestDone   bool
+	ingestErr    error
+	ingestResult string
 }
 
 func initialModel() model {
 	h := help.New()
-	// Style keys and descriptions using the theme styles
 	h.Styles.ShortKey = ui.CuteHighlight.Copy()
 	h.Styles.ShortDesc = ui.DimStyle.Copy()
 
 	prog := progress.New(progress.WithDefaultGradient())
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#89B4FA"))
 
 	return model{
 		options:      []string{"run chat", "ingest", "Flush DB", "exit"},
@@ -47,5 +59,10 @@ func initialModel() model {
 		dbDone:       false,
 		flushSuccess: false,
 		flushError:   nil,
+		spinner:      s,
+		ingesting:    false,
+		ingestDone:   false,
+		ingestErr:    nil,
+		ingestResult: "",
 	}
 }
