@@ -1,84 +1,114 @@
-# ChatUI
-----
-## Description:
-Making a GUI or a Clean TUI for when chatting with Ollama models that are running locally.
+# OllamaChat
 
-## MVP
-1. we install an uncensored or no safety open weights model using ollama and do ```ollama serve ``` after that model is installed.
-2. now we have ollama api present now we just need a backend that can send queries to ollama and give us a good response.
-3. Pretty good UI, just something that works.
-4. fine tuning it on PDFs.
+A local RAG pipeline with a terminal UI. Point it at a folder of PDFs, ingest them, and then ask questions — it finds the relevant chunks and feeds them as context to a locally running Ollama model.
+
+---
+
+## What it does
+
+- Ingests PDFs: extracts text, chunks it, generates vector embeddings via `nomic-embed-text`, and stores them in a pgvector Postgres database
+- At query time: embeds your question, runs a similarity search, pulls the top matching chunks, and sends them as context to your chat model
+- Runs entirely locally — no API keys, no internet required
+
+---
 
 ## Tech stack
-golang
-frontend : going with bubble tea cli 
 
-## Models in use:
-- qwen2.5:3b (or whatever Ollama model you want for chat)
-- nomic-embed-text:latest (for embedding text chunks)
+- Go + [langchaingo](https://github.com/tmc/langchaingo)
+- [BubbleTea](https://github.com/charmbracelet/bubbletea) for the TUI
+- pgvector (via Docker) for vector storage
+- Ollama for embeddings and chat
 
-## Quick Start (Automated)
+## Models
 
-The easiest way to run the project is using the helper script `run.sh`. It automatically:
-1. Creates a default `.env` if missing.
-2. Spins up the Postgres Vector DB using Docker Compose.
-3. Waits for the DB to be ready and installs the pgvector extension.
-4. Launches the TUI.
+- `nomic-embed-text` — for embedding chunks and queries
+- `qwen2.5:3b` — default chat model (swap for any Ollama-compatible model)
 
+---
+
+## Quick Start
+
+The easiest way to get going:
+
+**1. Pull and serve the models**
+```bash
+ollama pull nomic-embed-text
+ollama pull qwen2.5:3b
+ollama serve
+```
+
+**2. Run the script**
 ```bash
 chmod +x run.sh
 ./run.sh
 ```
 
+This will create a default `.env`, spin up the Postgres vector DB, install the pgvector extension, and launch the TUI.
+
+---
+
 ## Manual Setup
 
-If you prefer doing it manually:
+If you'd rather do it yourself:
 
-1. **Ollama**: Install and run Ollama with the embedding and chat models.
-   ```bash
-   ollama pull nomic-embed-text
-   ollama pull qwen2.5:3b
-   ollama serve
-   ```
-2. **Postgres Vector Database**: Start the local vector store using Docker.
-   ```bash
-   docker-compose up -d
-   ```
-3. **Initialize pgvector**: Create the `vector` extension:
-   ```bash
-   docker exec -it chattui-pgvector psql -U postgres -d vectordb -c "CREATE EXTENSION IF NOT EXISTS vector;"
-   ```
-4. **Environment Configuration**: Create a `.env` file at the root:
-   ```env
-   EMBED_MODEL=nomic-embed-text
-   CHAT_MODEL=qwen2.5:3b
-   DATABASE_URL=postgres://postgres:password@localhost:5432/vectordb?sslmode=disable
-   DATASET=Test_dataset
-   SYSTEM_PROMPT="You are a helpful assistant..."
-   ```
-5. **Run the TUI**:
-   ```bash
-   go run ./main
-   ```
+**1. Pull the models**
+```bash
+ollama pull nomic-embed-text
+ollama pull qwen2.5:3b
+ollama serve
+```
 
-## Architecture:
-### Training from PDFs
-PDF → extract text → split → embed → store vectors → similarity search → send context to LLM
-- successfully extracted the contents of a pdf from a file.
-- now splitting it.
-- chunking completed.
-- successfully embedded chunks using Ollama's embedding API (`nomic-embed-text`) via `langchaingo`.
-- ingestion completed using pgvector with docker i know and it has the vector similarity search thingy installed.
+**2. Start the vector DB**
+```bash
+docker-compose up -d
+```
 
-chatting is working now!! you can do `go run ./main` and it actually talks back using the context from ingested PDFs. feels good man.
+**3. Initialize pgvector**
+```bash
+docker exec -it chattui-pgvector psql -U postgres -d vectordb -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
 
+**4. Create a `.env` file**
+```env
+EMBED_MODEL=nomic-embed-text
+CHAT_MODEL=qwen2.5:3b
+DATABASE_URL=postgres://postgres:password@localhost:5432/vectordb?sslmode=disable
+DATASET=Test_dataset
+SYSTEM_PROMPT="You are a helpful assistant..."
+```
 
-## How to use the TUI:
+**5. Run it**
+```bash
+go run ./main
+```
 
-The tool runs completely in your terminal. Use `j`/`k` or the arrow keys to navigate the menu and press `enter` to select:
+---
 
-- **Run Chat**: Starts a conversation using your ingested document contexts. Type your question into the multi-line input box and press `enter` to send it. It streams query embeddings, runs similarity searches, and returns the response from Ollama. Press `esc` to go back to the menu.
-- **Ingest**: Scans the dataset directory (configured in `.env`) for PDFs, chunks them, generates vector embeddings, and stores them in Postgres. Shows a loading spinner while doing it.
-- **Show Files**: Lists all the PDFs in your dataset directory. Scroll with `j`/`k` and hit `enter` to open the selected PDF in your system's default PDF viewer (uses `xdg-open`).
-- **Flush DB**: Clears all documents and embeddings from Postgres. It asks you to confirm with `y`/`n` first, then shows a progress bar while doing the clean up.
-- **Exit**: Quits the program cleanly.
+## Using the TUI
+
+Navigate with `j`/`k` or arrow keys, select with `enter`:
+
+- **Run Chat** — ask questions against your ingested PDFs. Type your question and hit `enter`. Streams back a response using retrieved context. `esc` to go back.
+- **Ingest** — scans your dataset directory for PDFs, chunks them, embeds them, and stores everything in Postgres. Shows a spinner while it works.
+- **Show Files** — lists PDFs in your dataset folder. Hit `enter` on any file to open it with your system's default PDF viewer.
+- **Flush DB** — clears all stored documents and embeddings. Asks for `y`/`n` confirmation first.
+- **Exit** — quits cleanly.
+
+---
+
+## Architecture
+
+```
+PDF → extract text → chunk → embed (nomic-embed-text) → store in pgvector
+Query → embed → similarity search → top-k chunks → context + prompt → Ollama → response
+```
+
+This is RAG (Retrieval-Augmented Generation) — the model itself isn't modified, it just gets relevant document excerpts injected into each prompt.
+
+---
+
+## Prerequisites
+
+- [Ollama](https://ollama.ai) installed and running
+- Docker (for pgvector)
+- Go 1.21+
