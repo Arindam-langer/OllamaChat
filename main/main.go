@@ -7,6 +7,7 @@ import (
 	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/joho/godotenv"
 )
 
@@ -46,6 +47,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.chatViewport.Height < 5 {
 			m.chatViewport.Height = 5
 		}
+		// Re-wrap text inside chat history viewport on window resize
+		wrapped := lipgloss.NewStyle().Width(m.chatViewport.Width - 4).Render(m.chatContent)
+		m.chatViewport.SetContent(wrapped)
 	}
 
 	// 2. Delegate to active screen

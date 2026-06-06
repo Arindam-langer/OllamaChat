@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -141,7 +142,8 @@ func updateChat(msg tea.Msg, m model) (model, tea.Cmd) {
 			query := strings.TrimSpace(m.chatInput.Value())
 			if query != "" {
 				m.chatContent += fmt.Sprintf("\nYou > %s\n", query)
-				m.chatViewport.SetContent(m.chatContent)
+				wrapped := lipgloss.NewStyle().Width(m.chatViewport.Width - 4).Render(m.chatContent)
+				m.chatViewport.SetContent(wrapped)
 				m.chatViewport.GotoBottom()
 
 				m.chatInput.Reset()
@@ -175,7 +177,8 @@ func updateChat(msg tea.Msg, m model) (model, tea.Cmd) {
 			m.chatContent += fmt.Sprintf("\nAI > %s\n\n", msg.aiResponse)
 			m.chatHistory = append(m.chatHistory, msg.historyEntry...)
 		}
-		m.chatViewport.SetContent(m.chatContent)
+		wrapped := lipgloss.NewStyle().Width(m.chatViewport.Width - 4).Render(m.chatContent)
+		m.chatViewport.SetContent(wrapped)
 		m.chatViewport.GotoBottom()
 
 	case spinner.TickMsg:
