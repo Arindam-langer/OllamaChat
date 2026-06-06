@@ -43,6 +43,7 @@ func doShowCmd() tea.Cmd {
 
 func openFileCmd(filePath string) tea.Cmd {
 	return func() tea.Msg {
+		filePath = strings.TrimSpace(filePath)
 		cmd := exec.Command("xdg-open", filePath)
 		err := cmd.Start()
 		return openFileMsg{err: err}
