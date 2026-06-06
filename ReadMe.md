@@ -10,8 +10,11 @@ Making a GUI or a Clean TUI for when chatting with Ollama models that are runnin
 4. fine tuning it on PDFs.
 ## Tech stack
 golang
-frontend : dont know
+frontend : going with bubble tea cli 
 
+## Models in use:
+- qwen2.5:3b
+- nomic-embed-text:latest
 
 ## Prerequisites & Setup
 
@@ -35,7 +38,7 @@ frontend : dont know
 # To ingest the PDFs into the vector database
 go run ./main ingest
 
-# To start the chat (coming soon)
+# To start the chat
 go run ./main chat
 ```
 
@@ -47,4 +50,7 @@ PDF → extract text → split → embed → store vectors → similarity search
 - chunking completed.
 - successfully embedded chunks using Ollama's embedding API (`nomic-embed-text`) via `langchaingo`.
 -  ingestion completed using pgvector with docker i know and it has the vector similarity search thingy installed.
-current to do: Work on chat function of the cli. need to make cool UI for it.
+
+chatting is working now!! you can do `go run ./main chat` and it actually talks back using the context from ingested PDFs. feels good man.
+
+current to do: need to make cool UI for it using bubble tea TUI.
