@@ -120,3 +120,12 @@ func (s *VectorStore) SearchSimilar(ctx context.Context, queryVector []float32, 
 
 	return results, nil
 }
+
+func (s *VectorStore) Flush(ctx context.Context) error {
+	_, err := s.pool.Exec(ctx, "TRUNCATE TABLE documents RESTART IDENTITY;")
+	if err != nil {
+		return fmt.Errorf("failed to truncate documents table: %w", err)
+	}
+	return nil
+}
+
