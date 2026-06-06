@@ -30,6 +30,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ingesting = false
 			m.ingestDone = false
 			m.ingestErr = nil
+			m.chatLoading = false
+			m.chatErr = nil
 			return m, nil
 		}
 
@@ -38,6 +40,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress.Width = msg.Width - 10
 		if m.progress.Width > 80 {
 			m.progress.Width = 80
+		}
+		m.chatViewport.Width = msg.Width
+		m.chatViewport.Height = msg.Height - 8
+		if m.chatViewport.Height < 5 {
+			m.chatViewport.Height = 5
 		}
 	}
 

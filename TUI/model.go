@@ -5,7 +5,10 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tmc/langchaingo/llms"
 )
 
 type screenState int
@@ -41,6 +44,14 @@ type model struct {
 	showFiles  []string
 	showCursor int
 	showErr    error
+
+	// Chat state fields
+	chatInput    textarea.Model
+	chatViewport viewport.Model
+	chatLoading  bool
+	chatErr      error
+	chatHistory  []llms.MessageContent
+	chatContent  string
 }
 
 func initialModel() model {
@@ -53,6 +64,16 @@ func initialModel() model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#89B4FA"))
+
+	ta := textarea.New()
+	ta.Placeholder = "Ask a question..."
+	ta.Focus()
+	ta.CharLimit = 500
+	ta.SetWidth(60)
+	ta.SetHeight(3)
+
+	vp := viewport.New(80, 15)
+	vp.SetContent("Ask anything about your ingested documents.")
 
 	return model{
 		options:      []string{"Run Chat", "Ingest", "Show Files", "Flush DB", "Exit"},
@@ -70,5 +91,11 @@ func initialModel() model {
 		ingestDone:   false,
 		ingestErr:    nil,
 		ingestResult: "",
+		chatInput:    ta,
+		chatViewport: vp,
+		chatLoading:  false,
+		chatErr:      nil,
+		chatHistory:  nil,
+		chatContent:  "Ask anything about your ingested documents.\n\n",
 	}
 }

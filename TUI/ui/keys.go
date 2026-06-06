@@ -42,8 +42,8 @@ var Keys = KeyMap{
 		key.WithHelp("enter", "select"),
 	),
 	Back: key.NewBinding(
-		key.WithKeys("esc", "backspace"),
-		key.WithHelp("esc/backspace", "back to menu"),
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "back to menu"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q"),

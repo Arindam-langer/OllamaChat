@@ -28,6 +28,10 @@ func updateMenu(msg tea.Msg, m model) (model, tea.Cmd) {
 			switch m.cursor {
 			case 0:
 				m.state = screenChat
+				m.chatInput.Reset()
+				m.chatInput.Focus()
+				m.chatLoading = false
+				m.chatErr = nil
 			case 1:
 				m.state = screenIngest
 				m.ingesting = false
