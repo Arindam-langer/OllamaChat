@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
+	"github.com/Arindam-langer/OllamaChat/TUI/ui"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joho/godotenv"
 )
 
 func (m model) Init() tea.Cmd {
@@ -14,108 +15,103 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// 1. Handle Global Controls (Force quit, global back to menu, layout resizing)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.ForceQuit):
+		case key.Matches(msg, ui.Keys.ForceQuit):
 			return m, tea.Quit
 
-		case key.Matches(msg, keys.Quit):
-			if m.state == screenMenu {
-				return m, tea.Quit
-			}
-
-		case key.Matches(msg, keys.Back):
+		case key.Matches(msg, ui.Keys.Back):
 			m.state = screenMenu
+			m.flushing = false
+			m.flushSuccess = false
+			m.flushError = nil
 			return m, nil
 		}
 
-		// Handle keys based on the active screen
-		switch m.state {
-		case screenMenu:
-			switch {
-			case key.Matches(msg, keys.Up):
-				if m.cursor > 0 {
-					m.cursor--
-				}
-			case key.Matches(msg, keys.Down):
-				if m.cursor < len(m.options)-1 {
-					m.cursor++
-				}
-			case key.Matches(msg, keys.Enter):
-				switch m.cursor {
-				case 0:
-					m.state = screenChat
-				case 1:
-					m.state = screenIngest
-				case 2:
-					m.state = screenFlush
-				case 3: // exit
-					return m, tea.Quit
-				}
-			}
-		}
-
 	case tea.WindowSizeMsg:
-		// Let the help model know the terminal width so it can wrap/truncate
 		m.help.Width = msg.Width
+		m.progress.Width = msg.Width - 10
+		if m.progress.Width > 80 {
+			m.progress.Width = 80
+		}
 	}
-	return m, nil
+
+	// 2. Delegate state update to active screen helper
+	var cmd tea.Cmd
+	switch m.state {
+	case screenMenu:
+		m, cmd = updateMenu(msg, m)
+	case screenChat:
+		m, cmd = updateChat(msg, m)
+	case screenIngest:
+		m, cmd = updateIngest(msg, m)
+	case screenFlush:
+		m, cmd = updateFlush(msg, m)
+	}
+
+	return m, cmd
 }
 
 func (m model) View() string {
 	var s strings.Builder
 
+	// 1. Render active screen content
 	switch m.state {
 	case screenMenu:
-		s.WriteString(titleStyle.Render("  Ollama Chat  "))
-		s.WriteString("\n\n")
-		for i, option := range m.options {
-			if m.cursor == i {
-				s.WriteString(selectedStyle.Render(fmt.Sprintf("%s", option)))
-				s.WriteString("\n")
-			} else {
-				s.WriteString(unselectedStyle.Render(fmt.Sprintf("  %s", option)))
-				s.WriteString("\n")
-			}
-		}
-		s.WriteString("\n")
-
+		s.WriteString(viewMenu(m))
 	case screenChat:
-		s.WriteString(titleStyle.Render("Run Chat Page  "))
-		s.WriteString("\n\n")
-		s.WriteString(cuteHighlight.Render("Chat implementation goes here...\n\n"))
-
+		s.WriteString(viewChat(m))
 	case screenIngest:
-		s.WriteString(titleStyle.Render("  Ingest Page  "))
-		s.WriteString("\n\n")
-		s.WriteString(cuteHighlight.Render("Ingest implementation goes here...\n\n"))
-
+		s.WriteString(viewIngest(m))
 	case screenFlush:
-		s.WriteString(titleStyle.Render("  Flush DB Page  "))
-		s.WriteString("\n\n")
-		s.WriteString(cuteHighlight.Render("Flush implementation goes here...\n\n"))
+		s.WriteString(viewFlush(m))
 	}
 
-	// Dynamic help: disable Up/Down/Enter/Quit bindings if not on Menu state
-	activeKeys := keys
-	if m.state != screenMenu {
+	// 2. Configure active keys based on current page
+	activeKeys := ui.Keys
+	if m.state == screenMenu {
+		activeKeys.Up.SetEnabled(true)
+		activeKeys.Down.SetEnabled(true)
+		activeKeys.Enter.SetEnabled(true)
+		activeKeys.Back.SetEnabled(false)
+		activeKeys.Quit.SetEnabled(true)
+		activeKeys.Yes.SetEnabled(false)
+		activeKeys.No.SetEnabled(false)
+	} else if m.state == screenFlush {
 		activeKeys.Up.SetEnabled(false)
 		activeKeys.Down.SetEnabled(false)
 		activeKeys.Enter.SetEnabled(false)
-		activeKeys.Quit.SetEnabled(false) // q shouldn't quit from subpages, only esc
-		activeKeys.Back.SetEnabled(true)
+		activeKeys.Quit.SetEnabled(false)
+
+		if !m.flushing && !m.flushSuccess && m.flushError == nil {
+			activeKeys.Yes.SetEnabled(true)
+			activeKeys.No.SetEnabled(true)
+			activeKeys.Back.SetEnabled(true)
+		} else {
+			activeKeys.Yes.SetEnabled(false)
+			activeKeys.No.SetEnabled(false)
+			activeKeys.Back.SetEnabled(true)
+		}
 	} else {
-		activeKeys.Back.SetEnabled(false) // Esc has no action on main menu
+		activeKeys.Up.SetEnabled(false)
+		activeKeys.Down.SetEnabled(false)
+		activeKeys.Enter.SetEnabled(false)
+		activeKeys.Quit.SetEnabled(false)
+		activeKeys.Back.SetEnabled(true)
+		activeKeys.Yes.SetEnabled(false)
+		activeKeys.No.SetEnabled(false)
 	}
 
-	// Render the help view
 	s.WriteString(m.help.View(activeKeys))
 
 	return s.String()
 }
 
 func main() {
+	godotenv.Load(".env")
+
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("TUI Error: %v", err)
