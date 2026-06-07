@@ -46,6 +46,7 @@ type model struct {
 	showErr    error
 
 	// Chat state fields
+	chatDeps     *chatDeps
 	chatInput    textarea.Model
 	chatViewport viewport.Model
 	chatLoading  bool
@@ -91,6 +92,7 @@ func initialModel() model {
 		ingestDone:   false,
 		ingestErr:    nil,
 		ingestResult: "",
+		chatDeps:     &chatDeps{},
 		chatInput:    ta,
 		chatViewport: vp,
 		chatLoading:  false,
