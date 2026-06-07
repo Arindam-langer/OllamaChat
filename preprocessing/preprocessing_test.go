@@ -20,7 +20,7 @@ func TestReadDir(t *testing.T) {
 }
 
 func TestEmbedChunks(t *testing.T) {
-	_ = godotenv.Load("../.ENV")
+	_ = godotenv.Load("../.env")
 	embedModel := os.Getenv("EMBED_MODEL")
 	if embedModel == "" {
 		embedModel = "nomic-embed-text"

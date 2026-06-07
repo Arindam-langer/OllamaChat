@@ -25,13 +25,12 @@ type flushFinishedMsg struct {
 	err error
 }
 
-func doFlushCmd() tea.Cmd {
+func doFlushCmd(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
 		dbURL := os.Getenv("DATABASE_URL")
 		if dbURL == "" {
 			return flushFinishedMsg{err: fmt.Errorf("DATABASE_URL is not set in .env")}
 		}
-		ctx := context.Background()
 		vectorStore, err := store.Connect(ctx, dbURL)
 		if err != nil {
 			return flushFinishedMsg{err: err}
@@ -53,8 +52,10 @@ func updateFlush(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.flushSuccess = false
 				m.flushError = nil
 				m.progressVal = 0.0
+				ctx, cancel := context.WithCancel(context.Background())
+				m.cancel = cancel
 				return m, tea.Batch(
-					doFlushCmd(),
+					doFlushCmd(ctx),
 					tickCmd(),
 				)
 			case key.Matches(msg, ui.Keys.No):

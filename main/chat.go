@@ -78,7 +78,7 @@ func (d *chatDeps) init() error {
 	return d.err
 }
 
-func doChatCmd(deps *chatDeps, query string, history []llms.MessageContent) tea.Cmd {
+func doChatCmd(ctx context.Context, deps *chatDeps, query string, history []llms.MessageContent) tea.Cmd {
 	return func() tea.Msg {
 		if err := deps.init(); err != nil {
 			return chatResponseMsg{err: err}
@@ -92,7 +92,6 @@ If the context doesn't contain relevant information, say so honestly and try you
 		}
 
 		topK := 5
-		ctx := context.Background()
 
 		queryVectors, err := deps.embedder.EmbedDocuments(ctx, []string{query})
 		if err != nil {
@@ -177,8 +176,11 @@ func updateChat(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.chatLoading = true
 				m.chatErr = nil
 
+				ctx, cancel := context.WithCancel(context.Background())
+				m.cancel = cancel
+
 				return m, tea.Batch(
-					doChatCmd(m.chatDeps, query, m.chatHistory),
+					doChatCmd(ctx, m.chatDeps, query, m.chatHistory),
 					m.spinner.Tick,
 				)
 			}

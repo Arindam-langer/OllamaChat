@@ -68,6 +68,9 @@ func performIngestion(ctx context.Context) (string, error) {
 	activeFiles := make(map[string]bool)
 
 	for _, file := range fileNames {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		if filepath.Ext(file) != ".pdf" {
 			continue
 		}
@@ -144,9 +147,9 @@ func performIngestion(ctx context.Context) (string, error) {
 	return fmt.Sprintf("Ingestion complete: %s.", strings.Join(parts, ", ")), nil
 }
 
-func doIngestCmd() tea.Cmd {
+func doIngestCmd(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
-		res, err := performIngestion(context.Background())
+		res, err := performIngestion(ctx)
 		return ingestFinishedMsg{result: res, err: err}
 	}
 }
@@ -162,8 +165,10 @@ func updateIngest(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.ingestDone = false
 				m.ingestErr = nil
 				m.ingestResult = ""
+				ctx, cancel := context.WithCancel(context.Background())
+				m.cancel = cancel
 				return m, tea.Batch(
-					doIngestCmd(),
+					doIngestCmd(ctx),
 					m.spinner.Tick,
 				)
 			case key.Matches(msg, ui.Keys.No):

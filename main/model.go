@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -28,6 +30,7 @@ type model struct {
 	help         help.Model
 	progress     progress.Model
 	progressVal  float64
+	cancel       context.CancelFunc
 	flushing     bool
 	dbDone       bool
 	flushSuccess bool
