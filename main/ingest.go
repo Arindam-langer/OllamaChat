@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/Arindam-langer/OllamaChat/main/ui"
 	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 	"github.com/Arindam-langer/OllamaChat/store"
-	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,7 +21,7 @@ type ingestFinishedMsg struct {
 	err    error
 }
 
-// performIngestion runs the full ingest pipeline and returns a summary string
+// performIngestion runs an incremental ingest pipeline with change detection
 func performIngestion(ctx context.Context) (string, error) {
 	embedModel := os.Getenv("EMBED_MODEL")
 	if embedModel == "" {
@@ -57,14 +58,45 @@ func performIngestion(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to read dataset directory: %w", err)
 	}
 
-	var totalFiles int
-	var totalChunks int
+	// Get stored hashes so we can detect changes
+	storedHashes, err := vectorStore.GetFileHashes(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get stored file hashes: %w", err)
+	}
+
+	var ingested, skipped, updated int
+	activeFiles := make(map[string]bool)
 
 	for _, file := range fileNames {
 		if filepath.Ext(file) != ".pdf" {
 			continue
 		}
 		filePath := filepath.Join(dataset, file)
+		activeFiles[file] = true
+
+		// Hash the file to detect changes
+		currentHash, err := extract.HashFile(filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to hash %s: %w", file, err)
+		}
+
+		// Skip if the file hasn't changed
+		if storedHash, exists := storedHashes[file]; exists && storedHash == currentHash {
+			log.Printf("Skipping unchanged file: %s", file)
+			skipped++
+			continue
+		}
+
+		// If the file was previously ingested but has changed, delete old embeddings
+		if _, exists := storedHashes[file]; exists {
+			log.Printf("File changed, re-ingesting: %s", file)
+			if err := vectorStore.DeleteBySourceFile(ctx, file); err != nil {
+				return "", fmt.Errorf("failed to delete old embeddings for %s: %w", file, err)
+			}
+			updated++
+		} else {
+			ingested++
+		}
 
 		content, err := extract.ReadPdf(filePath)
 		if err != nil {
@@ -81,16 +113,35 @@ func performIngestion(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("failed to embed %s: %w", file, err)
 		}
 
-		err = vectorStore.InsertEmbeddings(ctx, embeddings)
+		err = vectorStore.InsertEmbeddings(ctx, embeddings, file, currentHash)
 		if err != nil {
 			return "", fmt.Errorf("failed to store embeddings for %s: %w", file, err)
 		}
-
-		totalFiles++
-		totalChunks += len(embeddings)
 	}
 
-	return fmt.Sprintf("Successfully processed %d files and stored %d embeddings.", totalFiles, totalChunks), nil
+	// Clean up embeddings from files that no longer exist on disk
+	orphansRemoved, err := vectorStore.CleanupOrphans(ctx, activeFiles)
+	if err != nil {
+		return "", fmt.Errorf("failed to cleanup orphaned embeddings: %w", err)
+	}
+
+	var parts []string
+	if ingested > 0 {
+		parts = append(parts, fmt.Sprintf("%d new", ingested))
+	}
+	if updated > 0 {
+		parts = append(parts, fmt.Sprintf("%d updated", updated))
+	}
+	if skipped > 0 {
+		parts = append(parts, fmt.Sprintf("%d unchanged", skipped))
+	}
+	if orphansRemoved > 0 {
+		parts = append(parts, fmt.Sprintf("%d removed", orphansRemoved))
+	}
+	if len(parts) == 0 {
+		return "No PDF files found in dataset directory.", nil
+	}
+	return fmt.Sprintf("Ingestion complete: %s.", strings.Join(parts, ", ")), nil
 }
 
 func doIngestCmd() tea.Cmd {
