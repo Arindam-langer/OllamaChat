@@ -24,6 +24,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, ui.Keys.Back):
+			if m.cancel != nil {
+				m.cancel()
+				m.cancel = nil
+			}
 			m.state = screenMenu
 			m.flushing = false
 			m.flushSuccess = false

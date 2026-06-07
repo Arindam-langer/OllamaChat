@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
+	"github.com/Arindam-langer/OllamaChat/main/ui"
 	extract "github.com/Arindam-langer/OllamaChat/preprocessing"
 	"github.com/Arindam-langer/OllamaChat/store"
-	"github.com/Arindam-langer/OllamaChat/main/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -24,16 +26,62 @@ type chatResponseMsg struct {
 	err          error
 }
 
-func doChatCmd(query string, history []llms.MessageContent) tea.Cmd {
-	return func() tea.Msg {
-		chatModel := os.Getenv("CHAT_MODEL")
-		if chatModel == "" {
-			chatModel = "qwen2.5:3b"
+// chatDeps holds persistent connections reused across chat messages
+type chatDeps struct {
+	vectorStore *store.VectorStore
+	embedder    *embeddings.EmbedderImpl
+	chatLLM     *ollama.LLM
+	once        sync.Once
+	err         error
+}
+
+func (d *chatDeps) init() error {
+	d.once.Do(func() {
+		dbURL := os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			d.err = fmt.Errorf("DATABASE_URL is not set in .env")
+			return
 		}
 
 		embedModel := os.Getenv("EMBED_MODEL")
 		if embedModel == "" {
 			embedModel = "nomic-embed-text"
+		}
+
+		chatModel := os.Getenv("CHAT_MODEL")
+		if chatModel == "" {
+			chatModel = "qwen2.5:3b"
+		}
+
+		ctx := context.Background()
+		vs, err := store.Connect(ctx, dbURL)
+		if err != nil {
+			d.err = fmt.Errorf("failed to connect to vector store: %w", err)
+			return
+		}
+		d.vectorStore = vs
+
+		emb, err := extract.NewOllamaEmbedder(embedModel, "")
+		if err != nil {
+			d.err = fmt.Errorf("failed to create embedder: %w", err)
+			return
+		}
+		d.embedder = emb
+
+		llm, err := ollama.New(ollama.WithModel(chatModel))
+		if err != nil {
+			d.err = fmt.Errorf("failed to create chat LLM: %w", err)
+			return
+		}
+		d.chatLLM = llm
+	})
+	return d.err
+}
+
+func doChatCmd(ctx context.Context, deps *chatDeps, query string, history []llms.MessageContent) tea.Cmd {
+	return func() tea.Msg {
+		if err := deps.init(); err != nil {
+			return chatResponseMsg{err: err}
 		}
 
 		systemPrompt := os.Getenv("SYSTEM_PROMPT")
@@ -43,31 +91,9 @@ Use the context below to answer the user's question accurately and concisely.
 If the context doesn't contain relevant information, say so honestly and try your best to help.`
 		}
 
-		dbURL := os.Getenv("DATABASE_URL")
-		if dbURL == "" {
-			return chatResponseMsg{err: fmt.Errorf("DATABASE_URL is not set in .env")}
-		}
-
 		topK := 5
-		ctx := context.Background()
 
-		vectorStore, err := store.Connect(ctx, dbURL)
-		if err != nil {
-			return chatResponseMsg{err: fmt.Errorf("failed to connect to vector store: %w", err)}
-		}
-		defer vectorStore.Close()
-
-		embedder, err := extract.NewOllamaEmbedder(embedModel, "")
-		if err != nil {
-			return chatResponseMsg{err: fmt.Errorf("failed to create embedder: %w", err)}
-		}
-
-		llm, err := ollama.New(ollama.WithModel(chatModel))
-		if err != nil {
-			return chatResponseMsg{err: fmt.Errorf("failed to create chat LLM: %w", err)}
-		}
-
-		queryVectors, err := embedder.EmbedDocuments(ctx, []string{query})
+		queryVectors, err := deps.embedder.EmbedDocuments(ctx, []string{query})
 		if err != nil {
 			return chatResponseMsg{err: fmt.Errorf("failed to embed query: %w", err)}
 		}
@@ -75,7 +101,7 @@ If the context doesn't contain relevant information, say so honestly and try you
 			return chatResponseMsg{err: fmt.Errorf("no query vector returned")}
 		}
 
-		results, err := vectorStore.SearchSimilar(ctx, queryVectors[0], topK)
+		results, err := deps.vectorStore.SearchSimilar(ctx, queryVectors[0], topK)
 		if err != nil {
 			return chatResponseMsg{err: fmt.Errorf("failed to search similar documents: %w", err)}
 		}
@@ -103,7 +129,7 @@ If the context doesn't contain relevant information, say so honestly and try you
 		})
 
 		var fullResponse strings.Builder
-		_, err = llm.GenerateContent(ctx, messages,
+		_, err = deps.chatLLM.GenerateContent(ctx, messages,
 			llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
 				fullResponse.Write(chunk)
 				return nil
@@ -150,8 +176,11 @@ func updateChat(msg tea.Msg, m model) (model, tea.Cmd) {
 				m.chatLoading = true
 				m.chatErr = nil
 
+				ctx, cancel := context.WithCancel(context.Background())
+				m.cancel = cancel
+
 				return m, tea.Batch(
-					doChatCmd(query, m.chatHistory),
+					doChatCmd(ctx, m.chatDeps, query, m.chatHistory),
 					m.spinner.Tick,
 				)
 			}
