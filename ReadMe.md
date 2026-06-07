@@ -4,6 +4,12 @@ A local RAG pipeline with a terminal UI. Point it at a folder of PDFs, ingest th
 
 ---
 
+## Demo
+
+<video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
+
+---
+
 ## What it does
 
 - Ingests PDFs: extracts text, chunks it, generates vector embeddings via `nomic-embed-text`, and stores them in a pgvector Postgres database
