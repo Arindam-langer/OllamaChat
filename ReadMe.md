@@ -6,7 +6,7 @@ A local RAG pipeline with a terminal UI. Point it at a folder of PDFs, ingest th
 
 ## Demo
 
-<video src="assets/demo.mp4" autoplay loop muted playsinline width="100%"></video>
+[![Demo](https://img.youtube.com/vi/CxOZKFigwL0/maxresdefault.jpg)](https://www.youtube.com/watch?v=CxOZKFigwL0)
 
 ---
 
